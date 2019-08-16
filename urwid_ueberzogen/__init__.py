@@ -1,3 +1,5 @@
+import enum
+
 import urwid
 import ueberzug.lib.v0 as ueberzug
 
@@ -23,9 +25,6 @@ class Image(urwid.WidgetWrap):
         canvas = self._w.render(size, focus)
         self.placement.width = canvas.cols()
         self.placement.height = canvas.rows()
-        self.placement.x, self.placement.y = \
-            self.placement.width * -10, self.placement.height * -10
-        self.placement.visibility = ueberzug.Visibility.VISIBLE
         return Image.Canvas(self.placement, canvas)
 
     class Canvas(urwid.CompositeCanvas):
@@ -46,14 +45,24 @@ class Image(urwid.WidgetWrap):
             super().__init__(*args, **kwargs)
             self.placement = placement
 
-        def update_position(self, x, y):
-            """Updates the position of the image placement.
+        def reavel_image(self, x, y):
+            """Displays the image placement at the given position.
 
             Args:
-                x (int): self-explanatory
-                y (int): self-explanatory
+                x (int): self-explanatory, unit characters
+                y (int): self-explanatory, unit characters
             """
             self.placement.x, self.placement.y = int(x), int(y)
+            self.placement.visibility = ueberzug.Visibility.VISIBLE
+
+
+@enum.unique
+class DrawingMoment(enum.Enum):
+    """Enum which lists the different drawing moments.
+    Either synchronous after sending the last command or asynchronous.
+    """
+    SYNCHRONOUS = 0
+    ASYNCHRONOUS = 1
 
 
 class Container(urwid.WidgetWrap):
@@ -68,49 +77,88 @@ class Container(urwid.WidgetWrap):
     Args:
         canvas (ueberzug.lib.v0.Canvas):
             the canvas of the image placements
-        synchronous (bool):
+        visibility (ueberzug.Visibility):
+            the visibility of the placements
+            of the Image widgets within this container
+        drawing_moment (DrawingMoment):
             immediate (/synchronous) drawing
             after sending a set of commands to ueberzug
 
     Attributes:
-        synchronous (bool):
+        drawing_moment (DrawingMoment):
             immediate (/synchronous) drawing
             after sending a set of commands to ueberzug
     """
-    def __init__(self, canvas, *args, synchronous=True, **kwargs):
+    def __init__(self, canvas, *args,
+                 visibility=ueberzug.Visibility.VISIBLE,
+                 drawing_moment=DrawingMoment.SYNCHRONOUS,
+                 **kwargs):
         super().__init__(*args, **kwargs)
-        self.synchronous = synchronous
+        self.drawing_moment = drawing_moment
         self._canvas = canvas
+        self._visibility = visibility
         self._last_visible_placements = set()
 
-    def __update_image_positions(self, canvas):
+    @property
+    def _lazy_drawing(self):
+        return (self._canvas.synchronous_lazy_drawing
+                if self.drawing_moment == DrawingMoment.SYNCHRONOUS else
+                self._canvas.lazy_drawing)
+
+    @property
+    def visibility(self):
+        """ueberzug.Visibility: the visibility of the placements
+            of the Image widgets within this container
+            Changes will be applied on the next redraw.
+        """
+        return self._visibility
+
+    @visibility.setter
+    def visibility(self, value):
+        if value != self._visibility:
+            self._visibility = value
+            self._invalidate()
+
+    def hide(self):
+        """Hides all displayed image placements instantly.
+
+        Images will reappear on the next redraw if this container is visible.
+        If this method isn't called in urwid's render method
+        it should be called in a block of a lazy_drawing with statement.
+        Otherwise needless redraws could happen.
+        """
+        self.__hide(self._last_visible_placements)
+
+    @staticmethod
+    def __hide(placements):
+        for placement in placements:
+            placement.visibility = ueberzug.Visibility.INVISIBLE
+
+    def __render_images(self, canvas):
         stack = [(0, 0, canvas)]
         visible_placements = set()
 
-        while stack:
-            x, y, current_canvas = stack.pop()
-            if isinstance(current_canvas, Image.Canvas):
-                visible_placements.add(current_canvas.placement)
-                current_canvas.update_position(x, y)
-            elif isinstance(current_canvas, urwid.CompositeCanvas):
-                stack += [
-                    (child_x + x, child_y + y, child_canvas)
-                    for child_x, child_y, child_canvas, *_
-                    in current_canvas.children
-                ]
+        if self._visibility == ueberzug.Visibility.VISIBLE:
+            while stack:
+                x, y, current_canvas = stack.pop()
+                if isinstance(current_canvas, Image.Canvas):
+                    visible_placements.add(current_canvas.placement)
+                    current_canvas.reavel_image(x, y)
+                elif isinstance(current_canvas, urwid.CompositeCanvas):
+                    stack += [
+                        (child_x + x, child_y + y, child_canvas)
+                        for child_x, child_y, child_canvas, *_
+                        in current_canvas.children
+                    ]
 
         disappeared_placements = \
             (self._last_visible_placements ^
              (self._last_visible_placements & visible_placements))
-        for placement in disappeared_placements:
-            placement.visibility = ueberzug.Visibility.INVISIBLE
-
+        self.__hide(disappeared_placements)
         self._last_visible_placements = visible_placements
 
     def render(self, size, focus=False):
-        with (self._canvas.synchronous_lazy_drawing
-              if self.synchronous else
-              self._canvas.lazy_drawing):
+        with self._lazy_drawing:
             canvas = super().render(size, focus)
-            self.__update_image_positions(canvas)
+            self.__render_images(canvas)
             return canvas
