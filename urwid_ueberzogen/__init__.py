@@ -98,6 +98,7 @@ class Container(urwid.WidgetWrap):
         self._canvas = canvas
         self._visibility = visibility
         self._last_visible_placements = set()
+        self._canvas.automatic_transmission = False
 
     @property
     def _lazy_drawing(self):
