@@ -45,7 +45,7 @@ class Image(urwid.WidgetWrap):
             super().__init__(*args, **kwargs)
             self.placement = placement
 
-        def reavel_image(self, x, y):
+        def reavel_image(self, x, y, width, height):
             """Displays the image placement at the given position.
 
             Args:
@@ -135,7 +135,14 @@ class Container(urwid.WidgetWrap):
         for placement in placements:
             placement.visibility = ueberzug.Visibility.INVISIBLE
 
-    def __render_images(self, canvas):
+    def _indent_level(self, canvas):
+        level = 0
+        while hasattr(canvas, "parent_canvas"):
+            level += 1
+            canvas = canvas.parent_canvas
+        return level
+    
+    def __render_images(self, canvas, size):
         stack = [(0, 0, canvas)]
         visible_placements = set()
 
@@ -143,14 +150,23 @@ class Container(urwid.WidgetWrap):
             while stack:
                 x, y, current_canvas = stack.pop()
                 if isinstance(current_canvas, Image.Canvas):
+                    first_shard_canvas = current_canvas.shards[0][1][0][-1]
                     visible_placements.add(current_canvas.placement)
-                    current_canvas.reavel_image(x, y)
+                    current_canvas.reavel_image(
+                        x=first_shard_canvas.total_ltrim,
+                        y=y,
+                        height=len(current_canvas.text),
+                        width=len(current_canvas.text[0]),
+                    )
                 elif isinstance(current_canvas, urwid.CompositeCanvas):
-                    stack += [
-                        (child_x + x, child_y + y, child_canvas)
-                        for child_x, child_y, child_canvas, *_
-                        in current_canvas.children
-                    ]
+                    # need to iterate through the shards, not the children!
+                    for child_x, child_y, child_canvas, *other in current_canvas.children:
+                        setattr(child_canvas, "parent_canvas", current_canvas)
+                        stack.append((
+                            child_x + x,
+                            child_y + y,
+                            child_canvas
+                        ))
 
         disappeared_placements = \
             (self._last_visible_placements ^
@@ -159,7 +175,27 @@ class Container(urwid.WidgetWrap):
         self._last_visible_placements = visible_placements
 
     def render(self, size, focus=False):
+        canvas = super().render(size, focus)
+        self._calculate_trims(canvas)
         with self._lazy_drawing:
-            canvas = super().render(size, focus)
-            self.__render_images(canvas)
+            self.__render_images(canvas, size)
             return canvas
+
+    def _calculate_trims(self, canvas):
+        curr_ltrim = 0
+        curr_row = 1
+        ltrims = [] # start_row, end_row, trim_amt
+        for rows, shard in canvas.shards:
+            total_row_ltrim = 0
+            for ltrim_start, ltrim_end, ltrim_amt in ltrims:
+                if ltrim_start <= curr_row < ltrim_end:
+                    total_row_ltrim += ltrim_amt
+
+            for idx, cview_info in enumerate(shard):
+                _, _, cview_ltrim, cview_rows, _, cview_canvas = cview_info
+                if idx == 0:
+                    ltrims.append((curr_row, curr_row + cview_rows, cview_ltrim))
+                setattr(cview_canvas, "total_ltrim", total_row_ltrim)
+                total_row_ltrim += cview_ltrim
+
+            curr_row += rows
