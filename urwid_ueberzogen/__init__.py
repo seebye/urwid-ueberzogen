@@ -45,7 +45,7 @@ class Image(urwid.WidgetWrap):
             super().__init__(*args, **kwargs)
             self.placement = placement
 
-        def reavel_image(self, x, y, width, height):
+        def reavel_image(self, x, y):
             """Displays the image placement at the given position.
 
             Args:
@@ -135,13 +135,6 @@ class Container(urwid.WidgetWrap):
         for placement in placements:
             placement.visibility = ueberzug.Visibility.INVISIBLE
 
-    def _indent_level(self, canvas):
-        level = 0
-        while hasattr(canvas, "parent_canvas"):
-            level += 1
-            canvas = canvas.parent_canvas
-        return level
-    
     def __render_images(self, canvas, size):
         stack = [(0, 0, canvas)]
         visible_placements = set()
@@ -154,9 +147,7 @@ class Container(urwid.WidgetWrap):
                     visible_placements.add(current_canvas.placement)
                     current_canvas.reavel_image(
                         x=first_shard_canvas.total_ltrim,
-                        y=y,
-                        height=len(current_canvas.text),
-                        width=len(current_canvas.text[0]),
+                        y=y
                     )
                 elif isinstance(current_canvas, urwid.CompositeCanvas):
                     # need to iterate through the shards, not the children!
