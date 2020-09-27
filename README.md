@@ -12,8 +12,7 @@ The source code contains a more detailed documentation.
 
 ### Container
 
-Urwid offers no way to directly get the position of a widget,  
-so that's why positions are calculated relative to this widget  
+Positions are calculated relative to this widget  
 which means that urwid_ueberzogen.Container has to be the root widget  
 in order to calculate the absolute position.  
 

@@ -43,15 +43,27 @@ class Image(urwid.WidgetWrap):
         """
         def __init__(self, placement, *args, **kwargs):
             super().__init__(*args, **kwargs)
+            # urwid will store e.g. the movements made by paddings in this dict
+            self.coords[placement.identifier] = (0, 0, None)
             self.placement = placement
 
-        def reavel_image(self, x, y):
+        def reavel_image(self, coords):
             """Displays the image placement at the given position.
 
             Args:
-                x (int): self-explanatory, unit characters
-                y (int): self-explanatory, unit characters
+                coords (dict):
+                    the coords attribute of the canvas
+                    of the root widget
             """
+            placement_coordinates = coords.get(self.placement.identifier, None)
+            if placement_coordinates is None:
+                raise KeyError(
+                    ("Expected to receive the image placement coordinates "
+                     "by the coords dict of the canvas of the root widget, "
+                     "but the identifier of the placement '{}' isn't "
+                     "a valid key of the dict.")
+                    .format(self.placement.identifier))
+            x, y, *_ = placement_coordinates
             self.placement.x, self.placement.y = int(x), int(y)
             self.placement.visibility = ueberzug.Visibility.VISIBLE
 
@@ -66,11 +78,10 @@ class DrawingMoment(enum.Enum):
 
 
 class Container(urwid.WidgetWrap):
-    """This widget calculates and updates
+    """This widget updates
     the image placement position of the Image widgets.
 
-    Urwid offers no way to directly get the position of a widget,
-    so that's why positions are calculated relative to this widget
+    Positions are calculated relative to this widget
     which means that this widget has to be the root widget
     in order to calculate the absolute position.
 
@@ -135,20 +146,20 @@ class Container(urwid.WidgetWrap):
         for placement in placements:
             placement.visibility = ueberzug.Visibility.INVISIBLE
 
-    def __render_images(self, canvas):
-        stack = [(0, 0, canvas)]
+    def __render_images(self, root_canvas):
+        stack = [root_canvas]
         visible_placements = set()
 
         if self._visibility == ueberzug.Visibility.VISIBLE:
             while stack:
-                x, y, current_canvas = stack.pop()
+                current_canvas = stack.pop()
                 if isinstance(current_canvas, Image.Canvas):
                     visible_placements.add(current_canvas.placement)
-                    current_canvas.reavel_image(x, y)
+                    current_canvas.reavel_image(root_canvas.coords)
                 elif isinstance(current_canvas, urwid.CompositeCanvas):
                     stack += [
-                        (child_x + x, child_y + y, child_canvas)
-                        for child_x, child_y, child_canvas, *_
+                        child_canvas
+                        for _, _, child_canvas, *_
                         in current_canvas.children
                     ]
 

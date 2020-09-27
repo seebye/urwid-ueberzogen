@@ -43,7 +43,7 @@ setuptools.setup(
 
     # This should be your name or the name of the organization which owns the
     # project.
-    author='Nico Baeurer',  # Optional
+    author='see bye',  # Optional
 
     # Classifiers help users find your project by categorizing it.
     #
