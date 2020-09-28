@@ -27,7 +27,7 @@ setuptools.setup(
     # For a discussion on single-sourcing the version across setup.py and the
     # project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.0.3',  # Required
+    version='0.0.4',  # Required
 
     # This is a one-line description or tagline of what your project does. This
     # corresponds to the "Summary" metadata field:
@@ -39,7 +39,7 @@ setuptools.setup(
     #
     # This field corresponds to the "Home-Page" metadata field:
     # https://packaging.python.org/specifications/core-metadata/#home-page-optional
-    url='https://github.com/seebye/urwid-ueberzogen',  # Optional
+    url='',  # Optional
 
     # This should be your name or the name of the organization which owns the
     # project.
@@ -94,7 +94,7 @@ setuptools.setup(
     # maintainers, and where to support the project financially. The key is
     # what's used to render the link text on PyPI.
     project_urls={  # Optional
-        'Bug Reports': 'https://github.com/seebye/urwid-ueberzogen/issues',
-        'Source': 'https://github.com/seebye/urwid-ueberzogen',
+        'Bug Reports': '',
+        'Source': '',
     },
 )
